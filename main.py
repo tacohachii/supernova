@@ -2,9 +2,37 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import subprocess
-
+import sys
+import os
 pd.options.mode.chained_assignment = None
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 引く数の設定
+# 例）
+# python3 main.py woosley s12.4
+# args[1] = mueller
+# args[2] = s12.4
+#
+# -----------------------------------------------------------------------------------------------------------
+args = sys.argv
+if len(args) <= 2:
+    print('Error: Set 2 argument')
+    sys.exit()
+progenitor_type = args[1]
+if progenitor_type != 'mueller' and progenitor_type != 'woosley':
+    print('Error: Set progenitor_type')
+    sys.exit()
+filename = args[2]
+input_file = f"./data/{progenitor_type}/{filename}"
+if not os.path.exists(input_file):
+    print(f"Error: Don't open {input_file}")
+    sys.exit()
+output_folder = f"./output/{progenitor_type}_{filename}/"
+subprocess.call(["mkdir", "-p", output_folder])
+output_prefix = f"{output_folder}{progenitor_type}_{filename}_"
 
 # -----------------------------------------------------------------------------------------------------------
 #
@@ -65,54 +93,111 @@ X_i_common_arr = [  # 原子の情報(delta(erg))
     {'name': 'Ni56',     'delta': -53.904*_MeV,  'atom': 56.0},
     {'name': 'Fe56',     'delta': -60.601*_MeV,  'atom': 56.0}
 ]
-
+if progenitor_type == 'mueller':
+    X_i_common_arr.remove(
+        {'name': 'He3', 'delta': 14.931*_MeV, 'atom': 3.0}
+    )
 
 # -----------------------------------------------------------------------------------------------------------
 #
 # データの読み込み
 #
 # -----------------------------------------------------------------------------------------------------------
-path = './data/s12.4'
-data = pd.read_csv(
-    path,
-    header=1,
-    sep='\s{2,}',
-    engine='python',
-    na_values='---'
-)
-data['average densty'] = float(np.nan)
-data['infall time'] = float(np.nan)
-data['mass accretion rate'] = float(np.nan)
-data['gain radius'] = float(np.nan)
-data['pns radius'] = float(np.nan)
-data['cool time scale'] = float(np.nan)
-data['bindin energy'] = float(np.nan)
-data['luminosity of accretion component'] = float(np.nan)
-data['luminosity of diffusive component'] = float(np.nan)
-data['neutrino luminosity'] = float(np.nan)
-data['redsift factor'] = float(np.nan)
-data['shock radius'] = float(np.nan)
-data['radius max'] = float(np.nan)
-data['radius min'] = float(np.nan)
-data['post shock binding energy'] = float(np.nan)
-data['advection time scale'] = float(np.nan)
-data['heating time scale'] = float(np.nan)
-data['critical time scale ration'] = float(np.nan)
-data['effeciency parameter'] = float(np.nan)
-data['avarage shock velocity'] = float(np.nan)
-data['post shock velocity'] = float(np.nan)
-data['escape velocity'] = float(np.nan)
-data['post shock temperature'] = float(np.nan)
-data['unshocked material binding energy'] = float(np.nan)
-data['nuclear burning energy'] = float(np.nan)
-data['E_diag at a given mass shell'] = float(np.nan)
-data['diagnostic explosion energy'] = float(np.nan)
-data['mass accretion rate against mass out'] = float(np.nan)
-data['outflow rate'] = float(np.nan)
-data['mass of baryonic neutron star'] = float(np.nan)
-data['mass of proto neutron star'] = float(np.nan)
-data['final explosion energy'] = float(np.nan)
-data['pre or phase1'] = float(np.nan)
+header_name = [
+    "grid",
+    "cell_mass",  # woosley で 入れない
+    "cell_outer_total_mass",
+    "cell_outer_radius",
+    "cell_outer_velocity",
+    "cell_density",
+    "cell_temperature",
+    "cell_pressure",
+    "cell_specific_energy",
+    "cell_specific_entropy",
+    "cell_angular_velocity",
+    "cell_A_bar",
+    "cell_Y_e",
+    "stability",  # mueller で 入れない
+    "NETWORK",  # mueller で 入れない
+    "neutrons",
+    "H1",
+    "He3",  # mueller で 入れない
+    "He4",
+    "C12",
+    "N14",
+    "O16",
+    "Ne20",
+    "Mg24",
+    "Si28",
+    "S32",
+    "Ar36",
+    "Ca40",
+    "Ti44",
+    "Cr48",
+    "Fe52",
+    "Fe54",
+    "Ni56",
+    "Fe56",
+    "'Fe'"
+]
+
+if progenitor_type == 'mueller':
+    header_name.remove("stability")
+    header_name.remove("NETWORK")
+    header_name.remove("He3")
+    data = pd.read_csv(
+        input_file,
+        skiprows=0,
+        names=header_name,
+        sep='\s{1,}',
+        engine='python',
+        na_values='-',
+        skipfooter=1
+    )
+if progenitor_type == 'woosley':
+    header_name.remove("cell_mass")
+    data = pd.read_csv(
+        input_file,
+        skiprows=2,
+        names=header_name,
+        sep='\s{2,}',
+        engine='python',
+        na_values='---'
+    )
+
+data['average_densty'] = float(np.nan)
+data['infall_time'] = float(np.nan)
+data['mass_accretion_rate'] = float(np.nan)
+data['gain_radius'] = float(np.nan)
+data['pns_radius'] = float(np.nan)
+data['cool_time_scale'] = float(np.nan)
+data['bindin_energy'] = float(np.nan)
+data['luminosity_of_accretion_component'] = float(np.nan)
+data['luminosity_of_diffusive_component'] = float(np.nan)
+data['neutrino_luminosity'] = float(np.nan)
+data['redsift_factor'] = float(np.nan)
+data['shock_radius'] = float(np.nan)
+data['radius_max'] = float(np.nan)
+data['radius_min'] = float(np.nan)
+data['post_shock_binding_energy'] = float(np.nan)
+data['advection_time_scale'] = float(np.nan)
+data['heating_time_scale'] = float(np.nan)
+data['critical_time_scale_ratio'] = float(np.nan)
+data['effeciency_parameter'] = float(np.nan)
+data['avarage_shock_velocity'] = float(np.nan)
+data['post_shock_velocity'] = float(np.nan)
+data['escape_velocity'] = float(np.nan)
+data['post_shock_temperature'] = float(np.nan)
+data['unshocked_material_binding_energy'] = float(np.nan)
+data['nuclear_burning_energy'] = float(np.nan)
+data['E_diag_at_a_given_mass_shell'] = float(np.nan)
+data['diagnostic_explosion_energy'] = float(np.nan)
+data['mass_accretion_rate_against_mass_out'] = float(np.nan)
+data['outflow_rate'] = float(np.nan)
+data['mass_of_baryonic_neutron_star'] = float(np.nan)
+data['mass_of_proto_neutron_star'] = float(np.nan)
+data['final_explosion_energy'] = float(np.nan)
+data['which_phase'] = float(np.nan)
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -121,42 +206,42 @@ data['pre or phase1'] = float(np.nan)
 #
 # -----------------------------------------------------------------------------------------------------------
 max_row = len(data.index)  # 列数
-M = data['cell outer total mass']  # 質量M(g)
-r = data['cell outer radius']  # 半径r(cm)
-rho = data['cell density']  # 密度rho(g/cm^3)
-rho_bar = data['average densty']  # 平均密度ρ_bar(g/cm^3)
-t = data['infall time']  # 落下時間t(s)
-M_dot = data['mass accretion rate']  # 質量降着率M_dot(g/s)
-r_g = data['gain radius']  # ゲイン半径r_g(cm)
-r_PNS = data['pns radius']  # 原始中性子星の半径r_PNS(cm)
-tau_cool = data['cool time scale']  # 中性子星結合エネルギーが放射されるタイムスケールtau_cool(s)
-E_bind = data['bindin energy']  # 冷たい中性子星の結合エネルギーE_bind(erg)
-L_acc = data['luminosity of accretion component']  # 降着成分による光度L_acc(erg/s)
-L_diff = data['luminosity of diffusive component']  # 拡散による光度L_diff(erg/s)
-L_nu = data['neutrino luminosity']  # ニュートリノ光度L_nu(erg/s)
-alpha = data['redsift factor']  # 赤方偏移因子alpha
-r_sh = data['shock radius']  # 衝撃波の半径r_sh(cm)
-r_max = data['radius max']  # r_shとr_gの大きい方r_max(cm)
-r_min = data['radius min']  # r_shとr_gの小さい方r_min(cm)
-e_g = data['post shock binding energy']  # ショック後の結合エネルギーe_g(erg/g)
-tau_adv = data['advection time scale']  # 降着物質がゲイン領域を移動するタイムスケールtau_adv(s)
-tau_heat = data['heating time scale']  # 降着物質がゲイン領域を移動するタイムスケールtau_heat(s)
-tau_ration = data['critical time scale ration']  # pre->exの基準tau_ration
-eta_acc = data['effeciency parameter']  # 降着のパラメーター?eta_acc(erg/g)
-v_sh = data['avarage shock velocity']  # 衝撃波の速さv_sh(cm/s)
-v_post = data['post shock velocity']  # 衝撃波通過後の速さv_post(cm/s)
-v_esc = data['escape velocity']  # 脱出速さv_esc(cm/s)
-T_sh = data['post shock temperature']  # 衝撃波直後の温度T_sh(K)
-e_bind = data['unshocked material binding energy']  # 衝撃波前の結合エネルギーe_bind(erg/g)
-e_burn = data['nuclear burning energy']  # 核融合によるエネルギーe_burn(erg/g)
-E_imm = data['E_diag at a given mass shell']  # 衝撃波が到達した時の診断エネルギーE_imm(erg)
-E_diag = data['diagnostic explosion energy']  # 診断爆発エネルギーE_diag(erg)
-M_dot_acc = data['mass accretion rate against mass out']  # 単位時間降着質量M_dot_acc
-M_dot_out = data['outflow rate']  # 単位時間あたりに出ていく質量M_dot_out
-M_by = data['mass of baryonic neutron star']  # 原始中性子星M_by
-M_ns = data['mass of proto neutron star']  # 最終的な中性子星の質量M_ns
-E_expl = data['final explosion energy']  # 爆発のエネルギーE_expl
-phase = data['pre or phase1']
+M = data['cell_outer_total_mass']  # 質量M(g)
+r = data['cell_outer_radius']  # 半径r(cm)
+rho = data['cell_density']  # 密度rho(g/cm^3)
+rho_bar = data['average_densty']  # 平均密度ρ_bar(g/cm^3)
+t = data['infall_time']  # 落下時間t(s)
+M_dot = data['mass_accretion_rate']  # 質量降着率M_dot(g/s)
+r_g = data['gain_radius']  # ゲイン半径r_g(cm)
+r_PNS = data['pns_radius']  # 原始中性子星の半径r_PNS(cm)
+tau_cool = data['cool_time_scale']  # 中性子星結合エネルギーが放射されるタイムスケールtau_cool(s)
+E_bind = data['bindin_energy']  # 冷たい中性子星の結合エネルギーE_bind(erg)
+L_acc = data['luminosity_of_accretion_component']  # 降着成分による光度L_acc(erg/s)
+L_diff = data['luminosity_of_diffusive_component']  # 拡散による光度L_diff(erg/s)
+L_nu = data['neutrino_luminosity']  # ニュートリノ光度L_nu(erg/s)
+alpha = data['redsift_factor']  # 赤方偏移因子alpha
+r_sh = data['shock_radius']  # 衝撃波の半径r_sh(cm)
+r_max = data['radius_max']  # r_shとr_gの大きい方r_max(cm)
+r_min = data['radius_min']  # r_shとr_gの小さい方r_min(cm)
+e_g = data['post_shock_binding_energy']  # ショック後の結合エネルギーe_g(erg/g)
+tau_adv = data['advection_time_scale']  # 降着物質がゲイン領域を移動するタイムスケールtau_adv(s)
+tau_heat = data['heating_time_scale']  # 降着物質がゲイン領域を移動するタイムスケールtau_heat(s)
+tau_ration = data['critical_time_scale_ratio']  # pre->exの基準tau_ration
+eta_acc = data['effeciency_parameter']  # 降着のパラメーター?eta_acc(erg/g)
+v_sh = data['avarage_shock_velocity']  # 衝撃波の速さv_sh(cm/s)
+v_post = data['post_shock_velocity']  # 衝撃波通過後の速さv_post(cm/s)
+v_esc = data['escape_velocity']  # 脱出速さv_esc(cm/s)
+T_sh = data['post_shock_temperature']  # 衝撃波直後の温度T_sh(K)
+e_bind = data['unshocked_material_binding_energy']  # 衝撃波前の結合エネルギーe_bind(erg/g)
+e_burn = data['nuclear_burning_energy']  # 核融合によるエネルギーe_burn(erg/g)
+E_imm = data['E_diag_at_a_given_mass_shell']  # 衝撃波が到達した時の診断エネルギーE_imm(erg)
+E_diag = data['diagnostic_explosion_energy']  # 診断爆発エネルギーE_diag(erg)
+M_dot_acc = data['mass_accretion_rate_against_mass_out']  # 単位時間降着質量M_dot_acc
+M_dot_out = data['outflow_rate']  # 単位時間あたりに出ていく質量M_dot_out
+M_by = data['mass_of_baryonic_neutron_star']  # 原始中性子星M_by
+M_ns = data['mass_of_proto_neutron_star']  # 最終的な中性子星の質量M_ns
+E_expl = data['final_explosion_energy']  # 爆発のエネルギーE_expl
+phase = data['which_phase']
 X_i_data = []  # 原子の質量分立の配列  例) X_i_data[1] = data['H1']
 # 原子の名前の配列  例) X_i_name[1] = 'H1'
 X_i_name = [d.get('name') for d in X_i_common_arr]
@@ -466,240 +551,38 @@ for i in range(max_row):
 # データ格納
 #
 # -----------------------------------------------------------------------------------------------------------
-data['average densty'] = rho_bar
-data['infall time'] = t
-data['mass accretion rate'] = M_dot
-data['gain radius'] = r_g
-data['pns radius'] = r_PNS
-data['cool time scale'] = tau_cool
-data['bindin energy'] = E_bind
-data['luminosity of accretion component'] = L_acc
-data['luminosity of diffusive component'] = L_diff
-data['neutrino luminosity'] = L_nu
-data['redsift factor'] = alpha
-data['shock radius'] = r_sh
-data['radius max'] = r_max
-data['radius min'] = r_min
-data['post shock binding energy'] = e_g
-data['advection time scale'] = tau_adv
-data['heating time scale'] = tau_heat
-data['critical time scale ration'] = tau_ration
-data['effeciency parameter'] = eta_acc
-data['avarage shock velocity'] = v_sh
-data['post shock velocity'] = v_post
-data['escape velocity'] = v_esc
-data['post shock temperature'] = T_sh
-data['unshocked material binding energy'] = e_bind
-data['nuclear burning energy'] = e_burn
-data['E_diag at a given mass shell'] = E_imm
-data['diagnostic explosion energy'] = E_diag
-data['mass accretion rate against mass out'] = M_dot_acc
-data['outflow rate'] = M_dot_out
-data['mass of baryonic neutron star'] = M_by
-data['mass of proto neutron star'] = M_ns
-data['final explosion energy'] = E_expl
-
-
-# -----------------------------------------------------------------------------------------------------------
-#
-# プロット処理
-#
-# -----------------------------------------------------------------------------------------------------------
-_r_t = data.plot(
-    title='t - r',
-    xlim=[0, 5],
-    ylim=[0, 300],
-    grid=True,
-    x='infall time',
-    y='gain radius'
-)
-data.plot(
-    ax=_r_t,
-    xlim=[0, 5],
-    ylim=[0, 300],
-    grid=True,
-    x='infall time',
-    y='shock radius'
-)
-
-_tau_t = data.plot(
-    title='t - tau',
-    xlim=[0, 5],
-    ylim=[0, 1e-2],
-    grid=True,
-    x='infall time',
-    y='advection time scale'
-)
-data.plot(
-    ax=_tau_t,
-    xlim=[0, 5],
-    ylim=[0, 1e-2],
-    grid=True,
-    x='infall time',
-    y='heating time scale'
-)
-
-_v_t = data.plot(
-    title='t - v',
-    xlim=[0, 5],
-    ylim=[0, 3e4],
-    grid=True,
-    x='infall time',
-    y='post shock velocity'
-)
-data.plot(
-    ax=_v_t,
-    xlim=[0, 5],
-    ylim=[0, 3e4],
-    grid=True,
-    x='infall time',
-    y='escape velocity'
-)
-
-_T_t = data.plot(
-    title='t - T_sh',
-    xlim=[0, 5],
-    grid=True,
-    x='infall time',
-    y='post shock temperature'
-)
-
-
-_Xi_M = data.plot(
-    title='M - Xi',
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='neutrons'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='H1'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='He3'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='He4'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='C12'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='N14'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='O16'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Ne20'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Mg24'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Si28'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='S32'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Ar36'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Ca40'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Ti44'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Cr48'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Fe52'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Fe54'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Ni56'
-)
-data.plot(
-    ax=_Xi_M,
-    ylim=[1e-4, 1],
-    grid=True,
-    x='cell outer total mass',
-    y='Fe56'
-)
-
-plt.show()
+data['average_densty'] = rho_bar
+data['infall_time'] = t
+data['mass_accretion_rate'] = M_dot
+data['gain_radius'] = r_g
+data['pns_radius'] = r_PNS
+data['cool_time_scale'] = tau_cool
+data['bindin_energy'] = E_bind
+data['luminosity_of_accretion_component'] = L_acc
+data['luminosity_of_diffusive_component'] = L_diff
+data['neutrino_luminosity'] = L_nu
+data['redsift_factor'] = alpha
+data['shock_radius'] = r_sh
+data['radius_max'] = r_max
+data['radius_min'] = r_min
+data['post_shock_binding_energy'] = e_g
+data['advection_time_scale'] = tau_adv
+data['heating_time_scale'] = tau_heat
+data['critical_time_scale_ratio'] = tau_ration
+data['effeciency_parameter'] = eta_acc
+data['avarage_shock_velocity'] = v_sh
+data['post_shock_velocity'] = v_post
+data['escape_velocity'] = v_esc
+data['post_shock_temperature'] = T_sh
+data['unshocked_material_binding_energy'] = e_bind
+data['nuclear_burning_energy'] = e_burn
+data['E_diag_at_a_given_mass_shell'] = E_imm
+data['diagnostic_explosion_energy'] = E_diag
+data['mass_accretion_rate_against_mass_out'] = M_dot_acc
+data['outflow_rate'] = M_dot_out
+data['mass_of_baryonic_neutron_star'] = M_by
+data['mass_of_proto_neutron_star'] = M_ns
+data['final_explosion_energy'] = E_expl
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -707,8 +590,228 @@ plt.show()
 # CSV出力
 #
 # -----------------------------------------------------------------------------------------------------------
-data.to_csv("result.csv")
-subprocess.call(["open", "result.csv"])
+output_csv = f"{output_prefix}result.csv"
+data.to_csv(output_csv)
+# subprocess.call(["open", output_csv])
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# プロット画像出力
+#
+# -----------------------------------------------------------------------------------------------------------
+_r_t = data.plot(
+    title='t - r',
+    xlim=[0, 5],
+    ylim=[0, 300],
+    grid=True,
+    x='infall_time',
+    y='gain_radius'
+)
+data.plot(
+    ax=_r_t,
+    xlim=[0, 5],
+    ylim=[0, 300],
+    grid=True,
+    x='infall_time',
+    y='shock_radius'
+)
+plt.savefig(f'{output_prefix}r_t.png')
+
+_tau_t = data.plot(
+    title='t - tau',
+    xlim=[0, 5],
+    ylim=[0, 1e-2],
+    grid=True,
+    x='infall_time',
+    y='advection_time_scale'
+)
+data.plot(
+    ax=_tau_t,
+    xlim=[0, 5],
+    ylim=[0, 1e-2],
+    grid=True,
+    x='infall_time',
+    y='heating_time_scale'
+)
+plt.savefig(f'{output_prefix}tau_t.png')
+
+_v_t = data.plot(
+    title='t - v',
+    xlim=[0, 5],
+    ylim=[0, 3e4],
+    grid=True,
+    x='infall_time',
+    y='post_shock_velocity'
+)
+data.plot(
+    ax=_v_t,
+    xlim=[0, 5],
+    ylim=[0, 3e4],
+    grid=True,
+    x='infall_time',
+    y='escape_velocity'
+)
+plt.savefig(f'{output_prefix}v_t.png')
+
+_T_t = data.plot(
+    title='t - T_sh',
+    xlim=[0, 5],
+    grid=True,
+    x='infall_time',
+    y='post_shock_temperature'
+)
+plt.savefig(f'{output_prefix}T_t.png')
+
+
+_Xi_M = data.plot(
+    title='M - Xi',
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='neutrons'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='H1'
+)
+if progenitor_type == 'woosley':
+    data.plot(
+        ax=_Xi_M,
+        ylim=[1e-4, 1],
+        grid=True,
+        x='cell_outer_total_mass',
+        y='He3'
+    )
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='He4'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='C12'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='N14'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='O16'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Ne20'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Mg24'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Si28'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='S32'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Ar36'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Ca40'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Ti44'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Cr48'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Fe52'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Fe54'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Ni56'
+)
+data.plot(
+    ax=_Xi_M,
+    ylim=[1e-4, 1],
+    grid=True,
+    x='cell_outer_total_mass',
+    y='Fe56'
+)
+plt.savefig(f'{output_prefix}Xi_t.png')
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# pdf出力
+#
+# -----------------------------------------------------------------------------------------------------------
+pdf = PdfPages(f'{output_prefix}plots.pdf')
+fignums = plt.get_fignums()
+for fignum in fignums:
+    plt.figure(fignum)
+    pdf.savefig()
+pdf.close()
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -720,5 +823,5 @@ subprocess.call(["open", "result.csv"])
 # print((phase == 'ex phase 1').sum())  # 4 -> 1
 # print((phase == 'ex phase 2').sum())  # 794 -> 797
 # [計算&追加] 結合エネルギーを解除するために使われたエネルギー?E_diag_dot ------------------------------- 式(37)
-# data['diagnostic explosion energy per time'] = e_rec * M_dot_out
-# E_diag_dot = data['diagnostic explosion energy per time']
+# data['diagnostic_explosion_energy per time'] = e_rec * M_dot_out
+# E_diag_dot = data['diagnostic_explosion_energy per time']
