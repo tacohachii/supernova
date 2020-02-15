@@ -72,7 +72,7 @@ X_i_common_arr = [  # 原子の情報(delta(erg))
 # データの読み込み
 #
 # -----------------------------------------------------------------------------------------------------------
-path = '/data/s12.4'
+path = './data/s12.4'
 data = pd.read_csv(
     path,
     header=1,
@@ -112,6 +112,7 @@ data['outflow rate'] = float(np.nan)
 data['mass of baryonic neutron star'] = float(np.nan)
 data['mass of proto neutron star'] = float(np.nan)
 data['final explosion energy'] = float(np.nan)
+data['pre or phase1'] = float(np.nan)
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -154,6 +155,8 @@ M_dot_acc = data['mass accretion rate against mass out']  # 単位時間降着�
 M_dot_out = data['outflow rate']  # 単位時間あたりに出ていく質量M_dot_out
 M_by = data['mass of baryonic neutron star']  # 原始中性子星M_by
 M_ns = data['mass of proto neutron star']  # 最終的な中性子星の質量M_ns
+E_expl = data['final explosion energy']  # 爆発のエネルギーE_expl
+phase = data['pre or phase1']
 X_i_data = []  # 原子の質量分立の配列  例) X_i_data[1] = data['H1']
 # 原子の名前の配列  例) X_i_name[1] = 'H1'
 X_i_name = [d.get('name') for d in X_i_common_arr]
@@ -161,7 +164,6 @@ X_i_name = [d.get('name') for d in X_i_common_arr]
 X_i_delta = [d.get('delta') for d in X_i_common_arr]
 # 原子の原子質量の配列  例) X_i_atom[1] = 1.0
 X_i_atom = [d.get('atom') for d in X_i_common_arr]
-E_expl = data['final explosion energy']  # 爆発のエネルギーE_expl
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -279,14 +281,12 @@ eta_acc = tau_adv / tau_heat * np.abs(e_g)
 for i in range(len(X_i_name)):
     X_i_data.append(data[X_i_name[i]])
 
+
 # -----------------------------------------------------------------------------------------------------------
 #
 # phase毎に計算
 #
 # -----------------------------------------------------------------------------------------------------------
-# [計算&追加] Phaseの判断
-data['pre or phase1'] = float(np.nan)
-phase = data['pre or phase1']
 condition_1 = False
 condition_2 = False
 for i in range(max_row):
@@ -448,13 +448,63 @@ if phase[max_row-1] == 'pre phase':
     phase[max_row-1] = 'BH'
     E_expl[max_row-1] = 0
 
-# 単位変換
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 単位変換(出力用)
+#
+# -----------------------------------------------------------------------------------------------------------
 for i in range(max_row):
     r_g[i] = r_g[i]/_km
     r_sh[i] = r_sh[i]/_km
     v_post[i] = v_post[i]/_km
     v_esc[i] = v_esc[i]/_km
 
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# データ格納
+#
+# -----------------------------------------------------------------------------------------------------------
+data['average densty'] = rho_bar
+data['infall time'] = t
+data['mass accretion rate'] = M_dot
+data['gain radius'] = r_g
+data['pns radius'] = r_PNS
+data['cool time scale'] = tau_cool
+data['bindin energy'] = E_bind
+data['luminosity of accretion component'] = L_acc
+data['luminosity of diffusive component'] = L_diff
+data['neutrino luminosity'] = L_nu
+data['redsift factor'] = alpha
+data['shock radius'] = r_sh
+data['radius max'] = r_max
+data['radius min'] = r_min
+data['post shock binding energy'] = e_g
+data['advection time scale'] = tau_adv
+data['heating time scale'] = tau_heat
+data['critical time scale ration'] = tau_ration
+data['effeciency parameter'] = eta_acc
+data['avarage shock velocity'] = v_sh
+data['post shock velocity'] = v_post
+data['escape velocity'] = v_esc
+data['post shock temperature'] = T_sh
+data['unshocked material binding energy'] = e_bind
+data['nuclear burning energy'] = e_burn
+data['E_diag at a given mass shell'] = E_imm
+data['diagnostic explosion energy'] = E_diag
+data['mass accretion rate against mass out'] = M_dot_acc
+data['outflow rate'] = M_dot_out
+data['mass of baryonic neutron star'] = M_by
+data['mass of proto neutron star'] = M_ns
+data['final explosion energy'] = E_expl
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# プロット処理
+#
+# -----------------------------------------------------------------------------------------------------------
 _r_t = data.plot(
     title='t - r',
     xlim=[0, 5],
@@ -651,17 +701,24 @@ data.plot(
 
 plt.show()
 
+
+# -----------------------------------------------------------------------------------------------------------
+#
 # CSV出力
+#
+# -----------------------------------------------------------------------------------------------------------
 data.to_csv("result.csv")
 subprocess.call(["open", "result.csv"])
 
 
-# 以下メモ
-
+# -----------------------------------------------------------------------------------------------------------
+#
+# メモ
+#
+# -----------------------------------------------------------------------------------------------------------
 # print((phase == 'pre phase').sum())  # 323
 # print((phase == 'ex phase 1').sum())  # 4 -> 1
 # print((phase == 'ex phase 2').sum())  # 794 -> 797
-
 # [計算&追加] 結合エネルギーを解除するために使われたエネルギー?E_diag_dot ------------------------------- 式(37)
 # data['diagnostic explosion energy per time'] = e_rec * M_dot_out
 # E_diag_dot = data['diagnostic explosion energy per time']
