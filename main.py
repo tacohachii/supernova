@@ -66,7 +66,7 @@ mu = 1.66053906660e-27*_kg  # g
 e_diss = 8.8*_MeV/mu  # erg/g
 eta_out = 1
 e_rec = 5*_MeV/mu  # erg/g
-beta_expl = 4.0
+beta_expl = 4
 radiation_constant = 7.566e-16*_J/_m**3  # erg/cm^3/K^4
 T_o_16 = 2.5e9  # K
 T_si_28 = 3.5e9  # K
@@ -188,6 +188,9 @@ data['avarage_shock_velocity'] = float(np.nan)
 data['post_shock_velocity'] = float(np.nan)
 data['escape_velocity'] = float(np.nan)
 data['post_shock_temperature'] = float(np.nan)
+data['O_16_temperature'] = T_o_16
+data['Si_28_temperature'] = T_si_28
+data['Ni_56_temperature'] = T_ni_56
 data['unshocked_material_binding_energy'] = float(np.nan)
 data['nuclear_burning_energy'] = float(np.nan)
 data['E_diag_at_a_given_mass_shell'] = float(np.nan)
@@ -341,7 +344,7 @@ for i in range(max_row):
     else:
         alpha[i] = np.sqrt(tmp_root)
 # 衝撃波の半径r_sh(cm) -- 式(22')
-r_sh = alpha_turb * 0.55*_km * (L_nu / 1e52) ** (4 / 9) * alpha ** (4 / 9) * (
+r_sh = alpha_turb * 0.55*_km * (L_nu / 1e52) ** (4 / 9) * (alpha ** 3) ** (4 / 9) * (
     M / M_sun) ** (5 / 9) * (r_g / (10*_km)) ** (16 / 9) * (M_dot / M_sun) ** (-2 / 3)
 # r_shとr_gの大きい方r_max(cm)
 for i in range(max_row):
@@ -356,12 +359,12 @@ tau_adv = 18e-3 * \
     (r_sh / (100*_km)) ** (3 / 2) * (M / M_sun) ** (-1 / 2) * \
     np.log(r_sh / r_g)  # TODO: どっち使う？ np.log(r_max / r_min)
 # 降着物質がゲイン領域を移動するタイムスケールtau_heat(s) -- 式(30')
-tau_heat = 150*_ms * (np.abs(e_g) / 1e19) * (r_g / (100*_km)) ** 2 * \
+tau_heat = 150*_ms * (e_g / 1e19) * (r_g / (100*_km)) ** 2 * \
     (L_nu / 1e52) ** (-1) * (alpha ** 3) ** (-1) * (M / M_sun) ** (-2)
 # pre->exの基準tau_ration
 tau_ration = tau_adv / tau_heat
 # 降着のパラメーター?eta_acc(erg/g) -- 式(31)
-eta_acc = tau_adv / tau_heat * np.abs(e_g)
+eta_acc = tau_adv / tau_heat * e_g
 # 原子のデータを配列にセット 例) X_i_data[1] = data['H1']
 for i in range(len(X_i_name)):
     X_i_data.append(data[X_i_name[i]])
@@ -377,7 +380,7 @@ condition_2 = False
 for i in range(max_row):
     v_esc[i] = np.sqrt(2 * G * M[i] / r[i])
     if i == 0 or (tau_ration[i] < 1 and condition_1 == False):
-        phase[i] = 'pre phase'
+        phase[i] = 0  # pre_phase
         # 爆発前段階
         # tau_ration[i] > 1の条件を満たさない
         E_imm[i] = 0
@@ -388,19 +391,19 @@ for i in range(max_row):
         e_bind[i] = 0
         e_burn[i] = 0
         M_dot_acc[i] = M_dot[i]
-        M_dot_out[i] = eta_out * eta_acc[i] * M_dot_acc[i] / np.abs(e_g[i])
+        M_dot_out[i] = eta_out * eta_acc[i] * M_dot_acc[i] / e_g[i]
         M_by[i] = 0
         M_ns[i] = 0
+        M_ini = M[i]
     else:
-        e_bind[i] = - 1 * G * M[i] / r[i]
+        e_bind[i] = -1 * G * M[i] / r[i]
         if v_post[i-1] < v_esc[i-1] and condition_2 == False:
-            phase[i] = 'ex phase 1'
+            phase[i] = 1  # ex_phase_1
             condition_1 = True
             # 爆発段階I
             # tau_ration[i] > 1の条件を満たす(1度でも)
             # v_post[i-1] > v_esc[i-1]の条件を満たさない
             dm = M[i] - M[i-1]
-            M_ini = M[i-1]
             tmp_val = M_dot[i] / (4 * PI * r[i] ** 2 * v_sh[i-1] * rho[i])
             if 1 < tmp_val:
                 tmp_min = 1  # (v_sh 小)
@@ -411,26 +414,28 @@ for i in range(max_row):
             #
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1] + (1 - alpha_out) * \
-                e_rec * eta_acc[i] / np.abs(e_g[i]) * dm
-            v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
+                e_rec * eta_acc[i] / e_g[i] * dm
+            tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
-            v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
             # T_sh -> Xi -> e_burn -> E_imm/E_diag
             #
             T_sh[i] = (3 * (beta_expl - 1) / (radiation_constant *
-                                              beta_expl) * rho[i] * v_sh[i] ** 2) ** (1 / 4)
+                                              beta_expl) * rho[i] * tmp_v_sh ** 2) ** (1 / 4)
             flashing_method(i)
             E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
             E_diag[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
+            v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
+                ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
+            v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
             # E_diagが負の時はブラックホールになる
             #
-            if E_diag[i] < 0 or phase[i-1] == 'BH':
+            if E_diag[i] < 0 or phase[i-1] == -1:
                 # ブラックホール
                 # E_diagが一度でも負になったり
                 # ~~~~~~~~したらここに来る
-                phase[i] = 'BH'
+                phase[i] = -1  # BH
                 #
                 # v_sh, v_post, E_diag
                 #
@@ -458,7 +463,7 @@ for i in range(max_row):
                 else:
                     M_dot_acc[i] = M_dot[i] * 1
                 M_dot_out[i] = eta_out * eta_acc[i] * \
-                    M_dot_acc[i] / np.abs(e_g[i])
+                    M_dot_acc[i] / e_g[i]
                 #
                 # M_by -> M_ns
                 #
@@ -472,10 +477,9 @@ for i in range(max_row):
             # 爆発段階II
             # tau_ration[i] > 1の条件を満たす(1度でも)
             # v_post[i-1] > v_esc[i-1]の条件を満たす(1度でも)
-            phase[i] = 'ex phase 2'
+            phase[i] = 2  # ex_phase_2
             condition_2 = True
             dm = M[i] - M[i-1]
-            M_ini = M[i-1]
             tmp_val = M_dot[i] / (4 * PI * r[i] ** 2 * v_sh[i-1] * rho[i])
             if 1 < tmp_val:
                 tmp_min = 1  # (v_sh 小)
@@ -486,27 +490,32 @@ for i in range(max_row):
             #
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1]
-            v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
+            tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
-            v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
             # T_sh -> Xi -> e_burn -> E_imm/E_diag
             #
             T_sh[i] = (3 * (beta_expl - 1) / (radiation_constant *
-                                              beta_expl) * rho[i] * v_sh[i] ** 2) ** (1 / 4)
+                                              beta_expl) * rho[i] * tmp_v_sh ** 2) ** (1 / 4)
             flashing_method(i)
             E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
-            E_diag[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
+            # E_diag[i] += (e_bind[i] + e_burn[i]) * dm
+            E_diag[i] += alpha_out * \
+                (e_bind[i] + e_burn[i]) * dm  # TODO: こっちの方が合う
+            v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
+                ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
+            v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
             # E_diagが負の時はブラックホールになる
             #
-            if phase[i-1] == 'BH' or E_diag[i] < 0:
+            if phase[i-1] == -1 or E_diag[i] < 0:
                 # ブラックホール
                 # E_diagが一度でも負になったり
                 # ~~~~~~~~したらここに来る
-                phase[i] = 'BH'
+                phase[i] = -1  # BH
                 v_sh[i] = 1e-10
                 v_post[i] = 0
+                E_imm[i] = E_imm[i-1]
                 E_diag[i] = 0
                 M_dot_out[i] = 0
                 M_dot_acc[i] = 0
@@ -529,8 +538,8 @@ for i in range(max_row):
                     M_ns[i] = 0
 E_expl = E_diag  # 爆発のエネルギーE_expl -- 式(50)
 
-if phase[max_row-1] == 'pre phase':
-    phase[max_row-1] = 'BH'
+if phase[max_row-1] == 0:
+    phase[max_row-1] = -1
     E_expl[max_row-1] = 0
 
 
@@ -540,6 +549,7 @@ if phase[max_row-1] == 'pre phase':
 #
 # -----------------------------------------------------------------------------------------------------------
 for i in range(max_row):
+    M[i] = M[i]/M_sun
     r_g[i] = r_g[i]/_km
     r_sh[i] = r_sh[i]/_km
     v_post[i] = v_post[i]/_km
@@ -600,6 +610,20 @@ data.to_csv(output_csv)
 # プロット画像出力
 #
 # -----------------------------------------------------------------------------------------------------------
+
+# Phase
+_phase_t = data.plot(
+    title='t - Phase',
+    xlim=[0, 5],
+    grid=True,
+    color='Black',
+    yticks=[-1, 0, 1, 2],
+    x='infall_time',
+    y='which_phase'
+)
+plt.savefig(f'{output_prefix}phase_t.png')
+
+# 半径
 _r_t = data.plot(
     title='t - r',
     xlim=[0, 5],
@@ -616,8 +640,17 @@ data.plot(
     x='infall_time',
     y='shock_radius'
 )
+data.plot(
+    ax=_r_t,
+    xlim=[0, 5],
+    secondary_y=True,
+    color='Black',
+    x='infall_time',
+    y='which_phase'
+)
 plt.savefig(f'{output_prefix}r_t.png')
 
+# タイムスケール
 _tau_t = data.plot(
     title='t - tau',
     xlim=[0, 5],
@@ -634,8 +667,17 @@ data.plot(
     x='infall_time',
     y='heating_time_scale'
 )
+data.plot(
+    ax=_tau_t,
+    xlim=[0, 5],
+    secondary_y=True,
+    color='Black',
+    x='infall_time',
+    y='which_phase'
+)
 plt.savefig(f'{output_prefix}tau_t.png')
 
+# 速さ
 _v_t = data.plot(
     title='t - v',
     xlim=[0, 5],
@@ -652,8 +694,17 @@ data.plot(
     x='infall_time',
     y='escape_velocity'
 )
+data.plot(
+    ax=_v_t,
+    xlim=[0, 5],
+    secondary_y=True,
+    color='Black',
+    x='infall_time',
+    y='which_phase'
+)
 plt.savefig(f'{output_prefix}v_t.png')
 
+# 温度
 _T_t = data.plot(
     title='t - T_sh',
     xlim=[0, 5],
@@ -661,9 +712,65 @@ _T_t = data.plot(
     x='infall_time',
     y='post_shock_temperature'
 )
+data.plot(
+    ax=_T_t,
+    xlim=[0, 5],
+    grid=True,
+    x='infall_time',
+    y='O_16_temperature'
+)
+data.plot(
+    ax=_T_t,
+    xlim=[0, 5],
+    grid=True,
+    x='infall_time',
+    y='Si_28_temperature'
+)
+data.plot(
+    ax=_T_t,
+    xlim=[0, 5],
+    grid=True,
+    x='infall_time',
+    y='Ni_56_temperature'
+)
+data.plot(
+    ax=_T_t,
+    xlim=[0, 5],
+    secondary_y=True,
+    color='Black',
+    x='infall_time',
+    y='which_phase'
+)
 plt.savefig(f'{output_prefix}T_t.png')
 
+# エネルギー
+_E_t = data.plot(
+    title='t - E',
+    xlim=[0, 5],
+    ylim=[0, 6e50],
+    grid=True,
+    x='infall_time',
+    y='E_diag_at_a_given_mass_shell'
+)
+data.plot(
+    ax=_E_t,
+    xlim=[0, 5],
+    ylim=[0, 6e50],
+    grid=True,
+    x='infall_time',
+    y='diagnostic_explosion_energy'
+)
+data.plot(
+    ax=_E_t,
+    xlim=[0, 5],
+    secondary_y=True,
+    color='Black',
+    x='infall_time',
+    y='which_phase'
+)
+plt.savefig(f'{output_prefix}E_t.png')
 
+# 質量分立
 _Xi_M = data.plot(
     title='M - Xi',
     ylim=[1e-4, 1],
@@ -798,7 +905,7 @@ data.plot(
     x='cell_outer_total_mass',
     y='Fe56'
 )
-plt.savefig(f'{output_prefix}Xi_t.png')
+plt.savefig(f'{output_prefix}Xi_M.png')
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -812,14 +919,432 @@ for fignum in fignums:
     plt.figure(fignum)
     pdf.savefig()
 pdf.close()
+plt.close('all')
 
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 比較データの出力
+#
+# -----------------------------------------------------------------------------------------------------------
+if progenitor_type == 'mueller':
+    subprocess.call(["mkdir", "-p", './data/compare/'])
+    output_dat = f"./data/compare/{filename}_calc.dat"
+    data[
+        [
+            'infall_time',
+            'cell_outer_total_mass',
+            'mass_accretion_rate',
+            'gain_radius',
+            'shock_radius',
+            'neutrino_luminosity',
+            'advection_time_scale',
+            'heating_time_scale',
+            'outflow_rate',
+            'diagnostic_explosion_energy',
+            'E_diag_at_a_given_mass_shell',
+            'luminosity_of_diffusive_component',
+            'cool_time_scale',
+            'bindin_energy',
+            'post_shock_binding_energy'
+        ]
+    ].to_csv(output_dat, sep=' ', index=False)
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 比較のデータの読み込み
+#
+# -----------------------------------------------------------------------------------------------------------
+if progenitor_type == 'mueller':
+    test_file = f'./data/compare/{filename}_test.dat'
+    if not os.path.exists(test_file):
+        print(f"Error: Don't open {test_file}")
+        sys.exit()
+
+    test_header = [
+        'test_infall_time',
+        'test_cell_outer_total_mass',
+        'test_mass_accretion_rate',
+        'test_gain_radius',
+        'test_shock_radius',
+        'test_neutrino_luminosity',
+        'test_rho0 [g/cm^3] in prog.',  # 除く
+        'test_r0 [cm] in progenitor',  # 除く
+        'test_advection_time_scale',
+        'test_heating_time_scale',
+        'test_outflow_rate',
+        'test_diagnostic_explosion_energy',
+        'test_E_diag_at_a_given_mass_shell',
+        'test_luminosity_of_diffusive_component',
+        'test_cool_time_scale',
+        'test_bindin_energy',
+        'test_post_shock_binding_energy'
+    ]
+    test = pd.read_csv(
+        test_file,
+        skiprows=1,
+        names=test_header,
+        sep=' '
+    )
+    test_max_row = len(test.index)  # 列数
+
+    # 単位変換
+    for i in range(test_max_row):
+        test['test_cell_outer_total_mass'][i] /= M_sun
+        test['test_gain_radius'][i] /= _km
+        test['test_shock_radius'][i] /= _km
+
+    calc_header = [
+        'infall_time',
+        'cell_outer_total_mass',
+        'mass_accretion_rate',
+        'gain_radius',
+        'shock_radius',
+        'neutrino_luminosity',
+        'advection_time_scale',
+        'heating_time_scale',
+        'outflow_rate',
+        'diagnostic_explosion_energy',
+        'E_diag_at_a_given_mass_shell',
+        'luminosity_of_diffusive_component',
+        'cool_time_scale',
+        'bindin_energy',
+        'post_shock_binding_energy'
+    ]
+    calc_file = output_dat
+    calc = pd.read_csv(
+        calc_file,
+        skiprows=1,
+        names=calc_header,
+        sep=' '
+    )
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 比較のデータのプロット
+#
+# -----------------------------------------------------------------------------------------------------------
+if progenitor_type == 'mueller':
+    output_compare = f'./output/compare_{filename}/'
+    subprocess.call(["mkdir", "-p", output_compare])
+
+    # 質量
+    c_M_t = test.plot(
+        title='t - M',
+        xlim=[0, 5],
+        ylim=[0, 2],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_cell_outer_total_mass'
+    )
+    calc.plot(
+        ax=c_M_t,
+        xlim=[0, 5],
+        ylim=[0, 2],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='cell_outer_total_mass'
+    )
+    plt.savefig(f'{output_compare}{filename}_M_t.png')
+
+    # dot
+    c_M_dot_t = test.plot(
+        title='t - M_dot',
+        xlim=[0, 5],
+        ylim=[0, 1e33],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_mass_accretion_rate'
+    )
+    calc.plot(
+        ax=c_M_dot_t,
+        xlim=[0, 5],
+        ylim=[0, 1e33],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='mass_accretion_rate'
+    )
+    plt.savefig(f'{output_compare}{filename}_M_dot_t.png')
+
+    # 半径
+    c_r_g_t = test.plot(
+        title='t - r_g',
+        xlim=[0, 5],
+        ylim=[0, 300],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_gain_radius'
+    )
+    calc.plot(
+        ax=c_r_g_t,
+        xlim=[0, 5],
+        ylim=[0, 300],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='gain_radius'
+    )
+    plt.savefig(f'{output_compare}{filename}_r_g_t.png')
+
+    # タイムスケール
+    c_tau_cool_t = test.plot(
+        title='t - tau_cool',
+        xlim=[0, 5],
+        ylim=[0, 2],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_cool_time_scale'
+    )
+    calc.plot(
+        ax=c_tau_cool_t,
+        xlim=[0, 5],
+        ylim=[0, 2],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='cool_time_scale'
+    )
+    plt.savefig(f'{output_compare}{filename}_tau_cool_t.png')
+
+    # エネルギー
+    c_E_bind_t = test.plot(
+        title='t - E_bind',
+        xlim=[0, 5],
+        ylim=[0, 1.0e54],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_bindin_energy'
+    )
+    calc.plot(
+        ax=c_E_bind_t,
+        xlim=[0, 5],
+        ylim=[0, 1.0e54],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='bindin_energy'
+    )
+    plt.savefig(f'{output_compare}{filename}_E_bind_t.png')
+
+    # 光度
+    c_L_diff_t = test.plot(
+        title='t - L_diff',
+        xlim=[0, 5],
+        ylim=[0, 1e53],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_luminosity_of_diffusive_component'
+    )
+    calc.plot(
+        ax=c_L_diff_t,
+        xlim=[0, 5],
+        ylim=[0, 1e53],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='luminosity_of_diffusive_component'
+    )
+    plt.savefig(f'{output_compare}{filename}_L_diff_t.png')
+
+    # 光度
+    c_L_nu_t = test.plot(
+        title='t - L_nu',
+        xlim=[0, 5],
+        ylim=[0, 2e53],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_neutrino_luminosity'
+    )
+    calc.plot(
+        ax=c_L_nu_t,
+        xlim=[0, 5],
+        ylim=[0, 2e53],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='neutrino_luminosity'
+    )
+    plt.savefig(f'{output_compare}{filename}_L_nu_t.png')
+
+    # 半径
+    c_r_sh_t = test.plot(
+        title='t - r_sh',
+        xlim=[0, 1e4],
+        ylim=[0, 300],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_shock_radius'
+    )
+    calc.plot(
+        ax=c_r_sh_t,
+        xlim=[0, 1e4],
+        ylim=[0, 300],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='shock_radius'
+    )
+    plt.savefig(f'{output_compare}{filename}_r_sh_t.png')
+
+    # エネルギー
+    c_e_g_t = test.plot(
+        title='t - e_g',
+        xlim=[0, 5],
+        ylim=[0, 4e19],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_post_shock_binding_energy'
+    )
+    calc.plot(
+        ax=c_e_g_t,
+        xlim=[0, 5],
+        ylim=[0, 4e19],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='post_shock_binding_energy'
+    )
+    plt.savefig(f'{output_compare}{filename}_e_g_t.png')
+
+    # タイムスケール
+    c_tau_adv_t = test.plot(
+        title='t - tau_adv',
+        xlim=[0, 5],
+        ylim=[0, 1e-2],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_advection_time_scale'
+    )
+    calc.plot(
+        ax=c_tau_adv_t,
+        xlim=[0, 5],
+        ylim=[0, 1e-2],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='advection_time_scale'
+    )
+    plt.savefig(f'{output_compare}{filename}_tau_adv_t.png')
+
+    # タイムスケール
+    c_tau_heat_t = test.plot(
+        title='t - tau_heat',
+        xlim=[0, 5],
+        ylim=[0, 1e-2],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_heating_time_scale'
+    )
+    calc.plot(
+        ax=c_tau_heat_t,
+        xlim=[0, 5],
+        ylim=[0, 1e-2],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='heating_time_scale'
+    )
+    plt.savefig(f'{output_compare}{filename}_tau_heat_t.png')
+
+    # エネルギー
+    c_E_imm_t = test.plot(
+        title='t - E_imm',
+        xlim=[0, 5],
+        ylim=[0, 1.0e51],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_E_diag_at_a_given_mass_shell'
+    )
+    calc.plot(
+        ax=c_E_imm_t,
+        xlim=[0, 5],
+        ylim=[0, 1.0e51],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='E_diag_at_a_given_mass_shell'
+    )
+    plt.savefig(f'{output_compare}{filename}_E_imm_t.png')
+
+    # エネルギー
+    c_E_diag_t = test.plot(
+        title='t - E_diag',
+        xlim=[0, 5],
+        ylim=[0, 1.0e51],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_diagnostic_explosion_energy'
+    )
+    calc.plot(
+        ax=c_E_diag_t,
+        xlim=[0, 5],
+        ylim=[0, 1.0e51],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='diagnostic_explosion_energy'
+    )
+    plt.savefig(f'{output_compare}{filename}_E_diag_t.png')
+
+    # dot
+    c_M_dot_out_t = test.plot(
+        title='t - M_dot_out',
+        xlim=[0, 5],
+        ylim=[0, 1e33],
+        grid=True,
+        alpha=0.5,
+        x='test_infall_time',
+        y='test_outflow_rate'
+    )
+    calc.plot(
+        ax=c_M_dot_out_t,
+        xlim=[0, 5],
+        ylim=[0, 1e33],
+        grid=True,
+        alpha=0.5,
+        x='infall_time',
+        y='outflow_rate'
+    )
+    plt.savefig(f'{output_compare}{filename}_M_dot_out_t.png')
+
+
+# -----------------------------------------------------------------------------------------------------------
+#
+# 比較データpdf出力
+#
+# -----------------------------------------------------------------------------------------------------------
+if progenitor_type == 'mueller':
+    pdf_compare = PdfPages(f'{output_compare}{filename}_plots.pdf')
+    fignums = plt.get_fignums()
+    for fignum in fignums:
+        plt.figure(fignum)
+        pdf_compare.savefig()
+    pdf_compare.close()
+    plt.close('all')
 
 # -----------------------------------------------------------------------------------------------------------
 #
 # メモ
 #
 # -----------------------------------------------------------------------------------------------------------
-# print((phase == 'pre phase').sum())  # 323
+# print((phase == 'pre_phase').sum())  # 323
 # print((phase == 'ex phase 1').sum())  # 4 -> 1
 # print((phase == 'ex phase 2').sum())  # 794 -> 797
 # [計算&追加] 結合エネルギーを解除するために使われたエネルギー?E_diag_dot ------------------------------- 式(37)
