@@ -390,8 +390,8 @@ for i in range(max_row):
         T_sh[i] = 0
         e_bind[i] = 0
         e_burn[i] = 0
-        M_dot_acc[i] = M_dot[i]
-        M_dot_out[i] = eta_out * eta_acc[i] * M_dot_acc[i] / e_g[i]
+        M_dot_acc[i] = 0
+        M_dot_out[i] = 0
         M_by[i] = 0
         M_ns[i] = 0
         M_ini = M[i]
@@ -410,16 +410,16 @@ for i in range(max_row):
             else:
                 tmp_min = tmp_val  # (v_sh 大)
             #
-            # E_imm/E_diag(仮) -> v_sh -> v_post
             #
+            # E_imm/E_diag(仮) -> v_sh -> v_post
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1] + (1 - alpha_out) * \
                 e_rec * eta_acc[i] / e_g[i] * dm
             tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             #
-            # T_sh -> Xi -> e_burn -> E_imm/E_diag
             #
+            # T_sh -> Xi -> e_burn -> E_imm/E_diag
             T_sh[i] = (3 * (beta_expl - 1) / (radiation_constant *
                                               beta_expl) * rho[i] * tmp_v_sh ** 2) ** (1 / 4)
             flashing_method(i)
@@ -429,44 +429,42 @@ for i in range(max_row):
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
-            # E_diagが負の時はブラックホールになる
             #
+            # E_diagが負の時はブラックホールになる
             if E_diag[i] < 0 or phase[i-1] == -1:
                 # ブラックホール
                 # E_diagが一度でも負になったり
                 # ~~~~~~~~したらここに来る
                 phase[i] = -1  # BH
                 #
-                # v_sh, v_post, E_diag
                 #
+                #v_sh, v_post, E_diag
                 v_sh[i] = 1e-10
                 v_post[i] = 0
                 E_diag[i] = 0
                 #
-                # M_dot_acc, M_dot_out
                 #
+                #M_dot_acc, M_dot_out
                 M_dot_out[i] = 0
                 M_dot_acc[i] = 0
                 #
-                # M_by, M_ns
                 #
+                #M_by, M_ns
                 M_by[i] = M_by[i-1]
                 M_ns[i] = M_ns[i-1]
             else:
                 #
-                # M_dot_acc -> M_dot_out
                 #
+                # M_dot_acc -> M_dot_out
                 tmp_val = M_dot[i] / (4 * PI * r[i] ** 2 * v_sh[i] * rho[i])
-                if 1 < tmp_val:
-                    M_dot_acc[i] = M_dot[i] * M_dot[i] / \
-                        (4 * PI * r[i] ** 2 * v_sh[i] * rho[i])
-                else:
+                if tmp_val > 1:
                     M_dot_acc[i] = M_dot[i] * 1
-                M_dot_out[i] = eta_out * eta_acc[i] * \
-                    M_dot_acc[i] / e_g[i]
+                else:
+                    M_dot_acc[i] = M_dot[i] * tmp_val
+                M_dot_out[i] = eta_out * eta_acc[i] * M_dot_acc[i] / e_g[i]
+                #
                 #
                 # M_by -> M_ns
-                #
                 if 1 - tau_adv[i] / tau_heat[i] > 0:
                     M_by[i] = M_ini + (1 - alpha_out) * \
                         (1 - tau_adv[i] / tau_heat[i]) * dm
@@ -486,28 +484,30 @@ for i in range(max_row):
             else:
                 tmp_min = tmp_val  # (v_sh 大)
             #
-            # E_imm/E_diag(仮) -> v_sh -> v_post
             #
+            # E_imm/E_diag(仮) -> v_sh -> v_post
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1]
             tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             #
-            # T_sh -> Xi -> e_burn -> E_imm/E_diag
             #
+            # T_sh -> Xi -> e_burn -> E_imm/E_diag
             T_sh[i] = (3 * (beta_expl - 1) / (radiation_constant *
                                               beta_expl) * rho[i] * tmp_v_sh ** 2) ** (1 / 4)
             flashing_method(i)
-            E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
-            # E_diag[i] += (e_bind[i] + e_burn[i]) * dm
-            E_diag[i] += alpha_out * \
-                (e_bind[i] + e_burn[i]) * dm  # TODO: こっちの方が合う
+            E_imm[i] += (e_bind[i] + e_burn[i]) * dm
+            E_diag[i] += (e_bind[i] + e_burn[i]) * dm
+            # TODO: こっちの方が合う
+            # E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
+            # E_diag[i] += alpha_out * \
+            #     (e_bind[i] + e_burn[i]) * dm
             v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
             #
-            # E_diagが負の時はブラックホールになる
             #
+            # E_diagが負の時はブラックホールになる
             if phase[i-1] == -1 or E_diag[i] < 0:
                 # ブラックホール
                 # E_diagが一度でも負になったり
@@ -517,19 +517,19 @@ for i in range(max_row):
                 v_post[i] = 0
                 E_imm[i] = E_imm[i-1]
                 E_diag[i] = 0
-                M_dot_out[i] = 0
                 M_dot_acc[i] = 0
+                M_dot_out[i] = 0
                 M_by[i] = M_by[i-1]
                 M_ns[i] = M_ns[i-1]
             else:
                 #
-                # M_dot_acc, M_dot_out
                 #
-                M_dot_out[i] = 0
+                # M_dot_acc, M_dot_out
                 M_dot_acc[i] = 0
+                M_dot_out[i] = 0
+                #
                 #
                 # M_by -> M_ns
-                #
                 M_by[i] = M_by[i-1]
                 if E_diag[i] > 0:
                     M_ns[i] = (-1 + np.sqrt(1 + 4 * M_by[i] / M_sun * 0.084)
@@ -1180,7 +1180,7 @@ if progenitor_type == 'mueller':
     # 半径
     c_r_sh_t = test.plot(
         title='t - r_sh',
-        xlim=[0, 1e4],
+        xlim=[0, 5],
         ylim=[0, 300],
         grid=True,
         alpha=0.5,
@@ -1189,7 +1189,7 @@ if progenitor_type == 'mueller':
     )
     calc.plot(
         ax=c_r_sh_t,
-        xlim=[0, 1e4],
+        xlim=[0, 5],
         ylim=[0, 300],
         grid=True,
         alpha=0.5,
@@ -1264,6 +1264,7 @@ if progenitor_type == 'mueller':
     # エネルギー
     c_E_imm_t = test.plot(
         title='t - E_imm',
+        # xlim=[0, 5e7],
         xlim=[0, 5],
         ylim=[0, 1.0e51],
         grid=True,
@@ -1273,6 +1274,7 @@ if progenitor_type == 'mueller':
     )
     calc.plot(
         ax=c_E_imm_t,
+        # xlim=[0, 5e7],
         xlim=[0, 5],
         ylim=[0, 1.0e51],
         grid=True,
@@ -1285,6 +1287,7 @@ if progenitor_type == 'mueller':
     # エネルギー
     c_E_diag_t = test.plot(
         title='t - E_diag',
+        # xlim=[0, 5e7],
         xlim=[0, 5],
         ylim=[0, 1.0e51],
         grid=True,
@@ -1294,6 +1297,7 @@ if progenitor_type == 'mueller':
     )
     calc.plot(
         ax=c_E_diag_t,
+        # xlim=[0, 5e7],
         xlim=[0, 5],
         ylim=[0, 1.0e51],
         grid=True,
@@ -1322,6 +1326,14 @@ if progenitor_type == 'mueller':
         x='infall_time',
         y='outflow_rate'
     )
+    # data.plot(
+    #     ax=c_M_dot_out_t,
+    #     xlim=[0, 5],
+    #     secondary_y=True,
+    #     color='Black',
+    #     x='infall_time',
+    #     y='which_phase'
+    # )
     plt.savefig(f'{output_compare}{filename}_M_dot_out_t.png')
 
 
