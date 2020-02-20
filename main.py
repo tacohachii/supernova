@@ -1462,15 +1462,3 @@ if progenitor_type == 'mueller':
         pdf_compare.savefig()
     pdf_compare.close()
     plt.close('all')
-
-# -----------------------------------------------------------------------------------------------------------
-#
-# メモ
-#
-# -----------------------------------------------------------------------------------------------------------
-# print((phase == 'pre_phase').sum())  # 323
-# print((phase == 'ex phase 1').sum())  # 4 -> 1
-# print((phase == 'ex phase 2').sum())  # 794 -> 797
-# [計算&追加] 結合エネルギーを解除するために使われたエネルギー?E_diag_dot ------------------------------- 式(37)
-# data['diagnostic_explosion_energy per time'] = e_rec * M_dot_out
-# E_diag_dot = data['diagnostic_explosion_energy per time']
