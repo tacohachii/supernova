@@ -6,6 +6,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import subprocess
 import sys
 import os
+import re
 pd.options.mode.chained_assignment = None
 
 # -----------------------------------------------------------------------------------------------------------
@@ -18,21 +19,26 @@ pd.options.mode.chained_assignment = None
 #
 # -----------------------------------------------------------------------------------------------------------
 args = sys.argv
+# 引数が2つあるか？
 if len(args) <= 2:
     print('Error: Set 2 argument')
     sys.exit()
+# 親星タイプの設定(引数1)
 progenitor_type = args[1]
-if progenitor_type != 'mueller' and progenitor_type != 'woosley':
+if progenitor_type != 'mueller' and progenitor_type != 'woosley' and progenitor_type != 'mesa':
     print('Error: Set progenitor_type')
     sys.exit()
+# ファイル名の設定(引数2)
 filename = args[2]
 input_file = f"./data/{progenitor_type}/{filename}"
 if not os.path.exists(input_file):
     print(f"Error: Don't open {input_file}")
     sys.exit()
+# 出力用のフォルダを作成
 output_folder = f"./output/{progenitor_type}_{filename}/"
 subprocess.call(["mkdir", "-p", output_folder])
 output_prefix = f"{output_folder}{progenitor_type}_{filename}_"
+
 
 # -----------------------------------------------------------------------------------------------------------
 #
@@ -57,6 +63,7 @@ G = 6.67259e-11*_m**3/_kg  # cm^3/(g.s^2)
 r_0 = 12*_km  # cm
 r_1 = 120*_km  # cm
 M_sun = 1.989e+30*_kg  # g
+R_sun = 696340 * _km  # cm
 tau_1p5 = 1.2  # s
 zeta = 0.8
 a = 0.084
@@ -70,12 +77,12 @@ beta_expl = 4
 radiation_constant = 7.566e-16*_J/_m**3  # erg/cm^3/K^4
 T_o_16 = 2.5e9  # K
 T_si_28 = 3.5e9  # K
-T_ni_56 = 7e9  # K
+T_ni_56 = 7e9  # K # 論文だと5e9
 alpha_out = 0.5
 X_i_common_arr = [  # 原子の情報(delta(erg))
     {'name': 'neutrons', 'delta': 8.071*_MeV,    'atom': 1.0},
     {'name': 'H1',       'delta': 7.289*_MeV,    'atom': 1.0},
-    {'name': 'He3',      'delta': 14.931*_MeV,   'atom': 3.0},
+    {'name': 'He3',      'delta': 14.931*_MeV,   'atom': 3.0},  # mueller で いらない
     {'name': 'He4',      'delta': 2.425*_MeV,    'atom': 4.0},
     {'name': 'C12',      'delta': 0.0*_MeV,      'atom': 12.0},
     {'name': 'N14',      'delta': 2.863*_MeV,    'atom': 14.0},
@@ -103,67 +110,117 @@ if progenitor_type == 'mueller':
 # データの読み込み
 #
 # -----------------------------------------------------------------------------------------------------------
-header_name = [
-    "grid",
-    "cell_mass",  # woosley で 入れない
-    "cell_outer_total_mass",
-    "cell_outer_radius",
-    "cell_outer_velocity",
-    "cell_density",
-    "cell_temperature",
-    "cell_pressure",
-    "cell_specific_energy",
-    "cell_specific_entropy",
-    "cell_angular_velocity",
-    "cell_A_bar",
-    "cell_Y_e",
-    "stability",  # mueller で 入れない
-    "NETWORK",  # mueller で 入れない
-    "neutrons",
-    "H1",
-    "He3",  # mueller で 入れない
-    "He4",
-    "C12",
-    "N14",
-    "O16",
-    "Ne20",
-    "Mg24",
-    "Si28",
-    "S32",
-    "Ar36",
-    "Ca40",
-    "Ti44",
-    "Cr48",
-    "Fe52",
-    "Fe54",
-    "Ni56",
-    "Fe56",
-    "'Fe'"
-]
+if progenitor_type == 'woosley' or progenitor_type == 'mueller':
+    header_name = [
+        "grid",
+        "cell_mass",  # woosley で 入れない
+        "cell_outer_total_mass",
+        "cell_outer_radius",
+        "cell_outer_velocity",
+        "cell_density",
+        "cell_temperature",
+        "cell_pressure",
+        "cell_specific_energy",
+        "cell_specific_entropy",
+        "cell_angular_velocity",
+        "cell_A_bar",
+        "cell_Y_e",
+        "stability",  # mueller で 入れない
+        "NETWORK",  # mueller で 入れない
+        "neutrons",
+        "H1",
+        "He3",  # mueller で 入れない
+        "He4",
+        "C12",
+        "N14",
+        "O16",
+        "Ne20",
+        "Mg24",
+        "Si28",
+        "S32",
+        "Ar36",
+        "Ca40",
+        "Ti44",
+        "Cr48",
+        "Fe52",
+        "Fe54",
+        "Ni56",
+        "Fe56",
+        "'Fe'"
+    ]
 
-if progenitor_type == 'mueller':
-    header_name.remove("stability")
-    header_name.remove("NETWORK")
-    header_name.remove("He3")
+    if progenitor_type == 'mueller':
+        header_name.remove("stability")
+        header_name.remove("NETWORK")
+        header_name.remove("He3")
+        data = pd.read_csv(
+            input_file,
+            skiprows=0,
+            names=header_name,
+            sep='\s{1,}',
+            engine='python',
+            na_values='-',
+            skipfooter=1
+        )
+    if progenitor_type == 'woosley':
+        header_name.remove("cell_mass")
+        data = pd.read_csv(
+            input_file,
+            skiprows=2,
+            names=header_name,
+            sep='\s{2,}',
+            engine='python',
+            na_values='---'
+        )
+    # NaNを0で置き換え
+    data.replace(np.nan, 0, inplace=True)
+
+if progenitor_type == 'mesa':
     data = pd.read_csv(
         input_file,
-        skiprows=0,
-        names=header_name,
-        sep='\s{1,}',
-        engine='python',
-        na_values='-',
-        skipfooter=1
-    )
-if progenitor_type == 'woosley':
-    header_name.remove("cell_mass")
-    data = pd.read_csv(
-        input_file,
-        skiprows=2,
-        names=header_name,
+        header=4,
         sep='\s{2,}',
         engine='python',
-        na_values='---'
     )
+
+    # 反転
+    data.sort_index(ascending=False, inplace=True)
+    data = data.reset_index(drop=True)
+
+    # データの整形
+    data['cell_density'] = 10 ** data['logRho']
+    data['cell_outer_radius'] = data['radius'] * R_sun
+    data['cell_outer_total_mass'] = data['mass'] * M_sun
+    data['neutrons'] = data['neut']
+    data['H1'] = data['h1']
+    data['He3'] = data['he3']
+    data['He4'] = data['he4']
+    data['C12'] = data['c12']
+    data['N14'] = data['n14']
+    data['O16'] = data['o16']
+    data['Ne20'] = data['ne20']
+    data['Mg24'] = data['mg24']
+    data['Si28'] = data['si28']
+    data['S32'] = data['s32']
+    data['Ar36'] = data['ar36']
+    data['Ca40'] = data['ca40']
+    data['Ti44'] = data['ti44']
+    data['Cr48'] = data['cr48']
+    data['Fe52'] = data['fe52']
+    data['Fe54'] = data['fe54']
+    data['Ni56'] = data['ni56']
+    data['Fe56'] = data['fe56']
+
+    # メタリシティの読み込み
+    metal = pd.read_csv(
+        input_file,
+        skiprows=1,
+        header=None,
+        usecols=[3],
+        sep='\s{2,}',
+        engine='python',
+    )
+    # metallicity = metal[3][1]
 
 data['average_densty'] = float(np.nan)
 data['infall_time'] = float(np.nan)
@@ -262,6 +319,7 @@ X_i_atom = [d.get('atom') for d in X_i_common_arr]
 
 
 def flashing_method(i):
+    e_burn[i] = 0
     # [flashing method] 衝撃波直後の温度によってどこまで核融合が進むのか決まる
     if T_sh[i] < T_o_16:
         e_burn[i] = 0
@@ -271,16 +329,16 @@ def flashing_method(i):
         for j in range(i_o_16):
             if X_i_delta[j] / X_i_atom[j] < X_i_delta[i_o_16] / X_i_atom[i_o_16]:
                 continue
-            e_burn[i] = e_burn[i-1] + X_i_data[j][i] * 1e-3 * (X_i_delta[j] / X_i_atom[j] -
-                                                               X_i_delta[i_o_16] / X_i_atom[i_o_16]) / mu
+            e_burn[i] = e_burn[i] + X_i_data[j][i] * 1e-3 * (X_i_delta[j] / X_i_atom[j] -
+                                                             X_i_delta[i_o_16] / X_i_atom[i_o_16]) / mu
     elif T_si_28 <= T_sh[i] and T_sh[i] < T_ni_56:
         # このときSi_28より軽いものはSi_28まで核融合する
         i_si28 = X_i_name.index('Si28')
         for j in range(i_si28):
             if X_i_delta[j] / X_i_atom[j] < X_i_delta[i_si28] / X_i_atom[i_si28]:
                 continue
-            e_burn[i] = e_burn[i-1] + X_i_data[j][i] * 1e-3 * (X_i_delta[j] / X_i_atom[j] -
-                                                               X_i_delta[i_si28] / X_i_atom[i_si28]) / mu
+            e_burn[i] = e_burn[i] + X_i_data[j][i] * 1e-3 * (X_i_delta[j] / X_i_atom[j] -
+                                                             X_i_delta[i_si28] / X_i_atom[i_si28]) / mu
     elif T_ni_56 <= T_sh[i]:
         # ニュートン法でT_alphaを求める
         T_n = T_ni_56 / 10 ** 9
@@ -299,7 +357,7 @@ def flashing_method(i):
             for j in range(i_ni56):
                 if X_i_delta[j] / X_i_atom[j] < X_i_delta[i_ni56] / X_i_atom[i_ni56]:
                     continue
-                e_burn[i] = e_burn[i-1] + X_i_data[j][i] * 1e-3 * \
+                e_burn[i] = e_burn[i] + X_i_data[j][i] * 1e-3 * \
                     (X_i_delta[j] / X_i_atom[j] -
                      X_i_delta[i_ni56] / X_i_atom[i_ni56]) / mu
         else:
@@ -317,6 +375,9 @@ rho_bar = M / (4 / 3 * PI * r ** 3)
 t = np.sqrt(PI/(4 * G * rho_bar))
 # 質量降着率M_dot(g/s) -- 式(3)
 M_dot = 2 * M / t * rho / (rho_bar - rho)
+for i in range(max_row):
+    if M_dot[i] < 0:  # mesaデータで起こった(rho_bar - rho の正負？)
+        M_dot[i] = -1 * M_dot[i]
 # ゲイン半径r_g(cm) -- 式(9)
 r_g = (r_1 ** 3 * (M_dot / M_sun) * (M / M_sun) ** (-3) + r_0 ** 3) ** (1 / 3)
 # 原始中性子星の半径r_PNS(cm)
@@ -369,7 +430,6 @@ eta_acc = tau_adv / tau_heat * e_g
 for i in range(len(X_i_name)):
     X_i_data.append(data[X_i_name[i]])
 
-
 # -----------------------------------------------------------------------------------------------------------
 #
 # phase毎に計算
@@ -392,9 +452,9 @@ for i in range(max_row):
         e_burn[i] = 0
         M_dot_acc[i] = 0
         M_dot_out[i] = 0
-        M_by[i] = 0
-        M_ns[i] = 0
         M_ini = M[i]
+        M_by[i] = M_ini
+        M_ns[i] = 0
     else:
         e_bind[i] = -1 * G * M[i] / r[i]
         if v_post[i-1] < v_esc[i-1] and condition_2 == False:
@@ -415,6 +475,8 @@ for i in range(max_row):
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1] + (1 - alpha_out) * \
                 e_rec * eta_acc[i] / e_g[i] * dm
+            if E_imm[i] < 0:
+                E_imm[i] = 1e-10
             tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             #
@@ -425,6 +487,8 @@ for i in range(max_row):
             flashing_method(i)
             E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
             E_diag[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
+            if E_imm[i] < 0:
+                E_imm[i] = 1e-10
             v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
@@ -450,8 +514,8 @@ for i in range(max_row):
                 #
                 #
                 #M_by, M_ns
-                M_by[i] = M_by[i-1]
-                M_ns[i] = M_ns[i-1]
+                M_by[i] = 0
+                M_ns[i] = 0
             else:
                 #
                 #
@@ -466,10 +530,10 @@ for i in range(max_row):
                 #
                 # M_by -> M_ns
                 if 1 - tau_adv[i] / tau_heat[i] > 0:
-                    M_by[i] = M_ini + (1 - alpha_out) * \
+                    M_by[i] = M_by[i-1] + (1 - alpha_out) * \
                         (1 - tau_adv[i] / tau_heat[i]) * dm
                 else:
-                    M_by[i] = M_ini
+                    M_by[i] = M_by[i-1]
                 M_ns[i] = 0
         else:
             # 爆発段階II
@@ -488,6 +552,8 @@ for i in range(max_row):
             # E_imm/E_diag(仮) -> v_sh -> v_post
             E_imm[i] = E_imm[i-1] + e_rec * eta_acc[i] / e_g[i] * tmp_min * dm
             E_diag[i] = E_diag[i-1]
+            if E_imm[i] < 0:
+                E_imm[i] = 1e-10
             tmp_v_sh = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             #
@@ -502,6 +568,8 @@ for i in range(max_row):
             # E_imm[i] += alpha_out * (e_bind[i] + e_burn[i]) * dm
             # E_diag[i] += alpha_out * \
             #     (e_bind[i] + e_burn[i]) * dm
+            if E_imm[i] < 0:
+                E_imm[i] = 1e-10
             v_sh[i] = 0.794 * np.sqrt(E_imm[i] / (M[i] - M_ini)) * \
                 ((M[i] - M_ini) / (rho[i] * r[i] ** 3)) ** 0.19
             v_post[i] = (beta_expl - 1) / beta_expl * v_sh[i]
@@ -519,8 +587,8 @@ for i in range(max_row):
                 E_diag[i] = 0
                 M_dot_acc[i] = 0
                 M_dot_out[i] = 0
-                M_by[i] = M_by[i-1]
-                M_ns[i] = M_ns[i-1]
+                M_by[i] = 0
+                M_ns[i] = 0
             else:
                 #
                 #
@@ -531,16 +599,20 @@ for i in range(max_row):
                 #
                 # M_by -> M_ns
                 M_by[i] = M_by[i-1]
-                if E_diag[i] > 0:
-                    M_ns[i] = (-1 + np.sqrt(1 + 4 * M_by[i] / M_sun * 0.084)
-                               ) / 2 / 0.084 * M_sun
-                else:
-                    M_ns[i] = 0
+                M_ns[i] = (-1 + np.sqrt(1 + 4 * M_by[i] /
+                                        M_sun * 0.084)) / 2 / 0.084 * M_sun
 E_expl = E_diag  # 爆発のエネルギーE_expl -- 式(50)
 
+# ExplosionPhaseにならなかったらBHになる
 if phase[max_row-1] == 0:
     phase[max_row-1] = -1
     E_expl[max_row-1] = 0
+
+# 中性子星の質量が2.05M_sunを超えていたらBHになる
+if M_ns[max_row-1] >= 2.05 * M_sun:
+    phase[max_row-1] = -1
+    E_expl[max_row-1] = 0
+    M_ns[max_row-1] = 0
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -554,6 +626,7 @@ for i in range(max_row):
     r_sh[i] = r_sh[i]/_km
     v_post[i] = v_post[i]/_km
     v_esc[i] = v_esc[i]/_km
+    M_ns[i] = M_ns[i]/M_sun
 
 
 # -----------------------------------------------------------------------------------------------------------
@@ -594,6 +667,41 @@ data['mass_of_baryonic_neutron_star'] = M_by
 data['mass_of_proto_neutron_star'] = M_ns
 data['final_explosion_energy'] = E_expl
 
+# -----------------------------------------------------------------------------------------------------------
+#
+# 欲しい情報の抜き出し
+#
+# -----------------------------------------------------------------------------------------------------------
+if progenitor_type == 'woosley' or progenitor_type == 'mesa':
+    # M_zams
+    regex = re.compile(r'\d+(?:\.\d+)?')
+    result = regex.search(filename)
+    M_zams = result.group()
+    # metal
+    if filename[0] == 's':
+        metallicity = 1
+        main_data_file = './output/calc/main_data_s.dat'
+    elif filename[0] == 'u':
+        metallicity = 1e-4
+        main_data_file = './output/calc/main_data_u.dat'
+    elif filename[0] == 'm':
+        metallicity = float(metal[3][1])
+        main_data_file = './output/calc/main_data_m.dat'
+    # Type, M_BH
+    if phase[max_row-1] != 2:
+        Type = 'BH'
+        M_BH = M[max_row-1]
+    else:
+        Type = 'SN'
+        M_BH = 0
+    subprocess.call(["mkdir", '-p', './output/calc/'])
+    subprocess.call(["touch", main_data_file])
+    with open(main_data_file, mode='a') as f:
+        if os.path.getsize(main_data_file) == 0:
+            f.write('{:>10}   {:>10}   {:>10}   {:>10}   {:>10}   {:>10}\n'.format(
+                'M', 'metal', 'Type', 'E_expl', 'M_ns', 'M_BH'))
+        f.write('{:>10}   {:>.4e}   {:>10}   {:>.4e}   {:>.4e}   {:>.4e}\n'.format(
+            M_zams, metallicity, Type, E_expl[max_row-1], M_ns[max_row-1], M_BH))
 
 # -----------------------------------------------------------------------------------------------------------
 #
@@ -614,7 +722,7 @@ data.to_csv(output_csv)
 # Phase
 _phase_t = data.plot(
     title='t - Phase',
-    xlim=[0, 5],
+    xlim=[0, 10],
     grid=True,
     color='Black',
     yticks=[-1, 0, 1, 2],
@@ -645,6 +753,7 @@ data.plot(
     xlim=[0, 5],
     secondary_y=True,
     color='Black',
+    alpha=0.5,
     x='infall_time',
     y='which_phase'
 )
@@ -672,6 +781,7 @@ data.plot(
     xlim=[0, 5],
     secondary_y=True,
     color='Black',
+    alpha=0.5,
     x='infall_time',
     y='which_phase'
 )
@@ -699,6 +809,7 @@ data.plot(
     xlim=[0, 5],
     secondary_y=True,
     color='Black',
+    alpha=0.5,
     x='infall_time',
     y='which_phase'
 )
@@ -738,6 +849,7 @@ data.plot(
     xlim=[0, 5],
     secondary_y=True,
     color='Black',
+    alpha=0.5,
     x='infall_time',
     y='which_phase'
 )
@@ -785,7 +897,7 @@ data.plot(
     x='cell_outer_total_mass',
     y='H1'
 )
-if progenitor_type == 'woosley':
+if progenitor_type != 'mueller':
     data.plot(
         ax=_Xi_M,
         ylim=[1e-4, 1],
